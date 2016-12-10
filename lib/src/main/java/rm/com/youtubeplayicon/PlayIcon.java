@@ -4,7 +4,6 @@ import android.animation.Animator;
 import android.animation.TimeInterpolator;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.view.animation.Interpolator;
 
 /**
  * Created by alex
@@ -17,21 +16,21 @@ public interface PlayIcon {
    *
    * @param state new icon state
    */
-  void setIconState(@NonNull IconState state);
+  void setIconState(@NonNull PlayIconDrawable.IconState state);
 
   /**
    * Return current icon state
    *
    * @return icon state
    */
-  @NonNull IconState getIconState();
+  @NonNull PlayIconDrawable.IconState getIconState();
 
   /**
    * Animate icon to given state.
    *
    * @param nextState new icon state
    */
-  void animateToState(@NonNull IconState nextState);
+  void animateToState(@NonNull PlayIconDrawable.IconState nextState);
 
   /**
    * Set color of icon
@@ -67,4 +66,11 @@ public interface PlayIcon {
    * @param listener new listener or null to remove any listener
    */
   void setAnimationListener(@Nullable Animator.AnimatorListener listener);
+
+  /**
+   * Allows one to manually control the transformation of the icon
+   *
+   * @param fraction determinate fraction which should be in range 0F..1F
+   */
+  void setCurrentFraction(float fraction);
 }

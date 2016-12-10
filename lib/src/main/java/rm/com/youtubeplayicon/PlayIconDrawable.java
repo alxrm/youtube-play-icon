@@ -4,42 +4,58 @@ import android.animation.Animator;
 import android.animation.TimeInterpolator;
 import android.animation.ValueAnimator;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.util.Log;
+import android.view.animation.DecelerateInterpolator;
 
-import static rm.com.youtubeplayicon.Graphics.paintOf;
-import static rm.com.youtubeplayicon.IconState.PAUSE;
-import static rm.com.youtubeplayicon.IconState.PLAY;
+import static rm.com.youtubeplayicon.PlayIconDrawable.IconState.PAUSE;
+import static rm.com.youtubeplayicon.PlayIconDrawable.IconState.PLAY;
 
 /**
  * Created by alex
  */
+public class PlayIconDrawable extends Drawable implements PlayIcon {
+  public static final long DEFAULT_ANIMATION_DURATION = 400;
+  public static final int DEFAULT_COLOR = Color.WHITE;
+  public static final boolean DEFAULT_VISIBLE = true;
 
-public final class PlayIconDrawable extends Drawable implements PlayIcon {
-  private static final boolean DEFAULT_VISIBLE = true;
+  public enum IconState {
+    PLAY, PAUSE
+  }
+
   private static final float FRACTION_PLAY = 0F;
   private static final float FRACTION_PAUSE = 1F;
+  private static final float[] TEMP_PATH_DATA = new float[8];
 
-  private final Paint iconPaint = paintOf();
   private final ValueAnimator iconAnimator = ValueAnimator.ofFloat(FRACTION_PLAY, FRACTION_PAUSE);
+  private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+  private final Path pathRight = new Path();
+  private final Path pathLeft = new Path();
 
-  private IconState currentIconState = IconState.PLAY;
+  private IconState currentIconState = PLAY;
   private boolean visible = DEFAULT_VISIBLE;
   private float currentFraction = FRACTION_PLAY;
 
+  private float[] pathLeftPlay;
+  private float[] pathLeftPause;
+  private float[] pathRightPlay;
+  private float[] pathRightPause;
+
   public PlayIconDrawable() {
+    iconPaint.setColor(DEFAULT_COLOR);
+
+    iconAnimator.setInterpolator(new DecelerateInterpolator(3));
+    iconAnimator.setDuration(DEFAULT_ANIMATION_DURATION);
     iconAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
       @Override public void onAnimationUpdate(ValueAnimator valueAnimator) {
-        final float fraction = valueAnimator.getAnimatedFraction();
-        currentFraction = (currentIconState == PAUSE) ? fraction : (1F - fraction);
-
-        invalidateSelf();
+        setCurrentFraction(valueAnimator.getAnimatedFraction());
       }
     });
   }
@@ -47,8 +63,16 @@ public final class PlayIconDrawable extends Drawable implements PlayIcon {
   @Override public void draw(@NonNull Canvas canvas) {
     if (!visible) return;
 
-    drawLeftHalf(canvas, currentFraction);
-    drawRightHalf(canvas, currentFraction);
+    drawPart(canvas, currentFraction, pathRightPlay, pathRightPause, TEMP_PATH_DATA, pathRight,
+        iconPaint);
+
+    drawPart(canvas, currentFraction, pathLeftPlay, pathLeftPause, TEMP_PATH_DATA, pathLeft,
+        iconPaint);
+  }
+
+  @Override protected void onBoundsChange(Rect bounds) {
+    super.onBoundsChange(bounds);
+    initPathParts();
   }
 
   @Override public void setAlpha(int alpha) {
@@ -66,8 +90,10 @@ public final class PlayIconDrawable extends Drawable implements PlayIcon {
   }
 
   @Override public void setIconState(@NonNull IconState state) {
+    if (isRunning()) iconAnimator.cancel();
+
     currentIconState = state;
-    currentFraction = state == PAUSE ? FRACTION_PAUSE : FRACTION_PLAY;
+    currentFraction = (state == PAUSE) ? FRACTION_PAUSE : FRACTION_PLAY;
     invalidateSelf();
   }
 
@@ -76,9 +102,13 @@ public final class PlayIconDrawable extends Drawable implements PlayIcon {
   }
 
   @Override public void animateToState(@NonNull IconState nextState) {
-    iconAnimator.cancel();
-    currentIconState = nextState;
-    iconAnimator.start();
+    if (isRunning()) iconAnimator.cancel();
+
+    if (nextState == PAUSE) {
+      iconAnimator.start();
+    } else {
+      iconAnimator.reverse();
+    }
   }
 
   @Override public void setColor(int color) {
@@ -107,74 +137,66 @@ public final class PlayIconDrawable extends Drawable implements PlayIcon {
     }
   }
 
-  public final void toggle(boolean animated) {
-    final IconState next = currentIconState == PAUSE ? PLAY : PAUSE;
+  @Override public void setCurrentFraction(float fraction) {
+    if (fraction < 0F || fraction > 1F) {
+      throw new IllegalStateException("Fraction should be in a range of 0F..1F");
+    }
 
-    if (animated) animateToState(next);
-    else setIconState(next);
+    currentFraction = fraction;
+    currentIconState = (currentFraction < 0.5F) ? PLAY : PAUSE;
+    invalidateSelf();
   }
 
-  private void drawLeftHalf(@NonNull Canvas canvas, float fraction) {
-    final float cx = getCenterX();
-    final float h = getHeight();
-    final float w = getWidth();
-
-    final float[] playPath = {
-        cx, h / 4,      // second pair [x, y], first is always [0, 0]
-        cx, h * 3 / 4,  // third pair
-        0, h            // fourth pair -> makes trapeze
-    };
-
-    final float[] pausePath = {
-        w / 3, 0,       // second pair [x, y], first is always [0, 0]
-        w / 3, h,       // third pair
-        0, h            // fourth pair
-    };
-
-    final Path res = PathBuilder.builder()
-        .lineTo(playPath[0] + (pausePath[0] - playPath[0]) * fraction,
-            playPath[1] + (pausePath[1] - playPath[1]) * fraction)
-        .lineTo(playPath[2] + (pausePath[2] - playPath[2]) * fraction,
-            playPath[3] + (pausePath[3] - playPath[3]) * fraction)
-        .lineTo(playPath[4] + (pausePath[4] - playPath[4]) * fraction,
-            playPath[5] + (pausePath[5] - playPath[5]) * fraction)
-        .build();
-
-    canvas.drawPath(res, iconPaint);
+  public boolean isRunning() {
+    return iconAnimator.isRunning();
   }
 
-  private void drawRightHalf(@NonNull Canvas canvas, float fraction) {
-    final float cx = getCenterX();
-    final float cy = getCenterY();
-    final float w = getWidth();
-    final float h = getHeight();
+  public void toggle(boolean animated) {
+    final IconState next = (currentIconState == PAUSE) ? PLAY : PAUSE;
 
-    final float[] playPath = {
-        cx, h / 4,      // first pair [x, y]
-        w, cy,          // second pair
-        w, cy,          // third pair
-        cx, h * 3 / 4   // fourth pair -> makes trapeze
+    if (animated) {
+      animateToState(next);
+    } else {
+      setIconState(next);
+    }
+  }
+
+  private void drawPart(@NonNull Canvas canvas, float fraction, float[] pathPlay, float pathPause[],
+      float[] animatedPath, Path pathToDraw, Paint with) {
+    Graphics.animatePath(animatedPath, pathPlay, pathPause, fraction);
+    Graphics.inRect(pathToDraw, animatedPath);
+
+    canvas.drawPath(pathToDraw, with);
+  }
+
+  private void initPathParts() {
+    pathLeftPlay = new float[] {            // makes trapeze
+        0, 0,                               // top left [x, y]
+        getCenterX(), getHeight() * 0.25F,  // top right
+        getCenterX(), getHeight() * 0.75F,  // bottom right
+        0, getHeight()                      // bottom left
     };
 
-    final float[] pausePath = {
-        w * 2 / 3, 0,   // first pair [x, y]
-        w, 0,           // second pair
-        w, h,           // third pair
-        w * 2 / 3, h    // fourth pair
+    pathLeftPause = new float[] {           // makes rectangle
+        0, 0,                               // top left [x, y]
+        getWidth() / 3, 0,                  // top right
+        getWidth() / 3, getHeight(),        // bottom right
+        0, getHeight()                      // bottom left
     };
 
-    final Path res = PathBuilder.builder()
-        .moveTo(playPath[0] + (pausePath[0] - playPath[0]) * fraction,
-            playPath[1] + (pausePath[1] - playPath[1]) * fraction)
-        .lineTo(playPath[2] + (pausePath[2] - playPath[2]) * fraction,
-            playPath[3] + (pausePath[3] - playPath[3]) * fraction)
-        .lineTo(playPath[4] + (pausePath[4] - playPath[4]) * fraction,
-            playPath[5] + (pausePath[5] - playPath[5]) * fraction)
-        .lineTo(playPath[6] + (pausePath[6] - playPath[6]) * fraction,
-            playPath[7] + (pausePath[7] - playPath[7]) * fraction)
-        .build();
+    pathRightPlay = new float[] {           // makes triangle
+        getCenterX(), getHeight() * 0.25F,  // top left [x, y]
+        getWidth(), getCenterY(),           // top right
+        getWidth(), getCenterY(),           // bottom right
+        getCenterX(), getHeight() * 0.75F   // bottom left
+    };
 
-    canvas.drawPath(res, iconPaint);
+    pathRightPause = new float[] {          // makes rectangle
+        getWidth() * 2 / 3, 0,              // top left [x, y]
+        getWidth(), 0,                      // top right
+        getWidth(), getHeight(),            // bottom right
+        getWidth() * 2 / 3, getHeight()     // bottom left
+    };
   }
 
   private float getCenterX() {

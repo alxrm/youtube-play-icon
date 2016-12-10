@@ -1,8 +1,7 @@
 package rm.com.youtubeplayicon;
 
-import android.content.Context;
-import android.graphics.Color;
-import android.graphics.Paint;
+import android.graphics.Path;
+import android.support.annotation.NonNull;
 
 /**
  * Created by alex
@@ -11,13 +10,29 @@ final class Graphics {
   private Graphics() {
   }
 
-  static Paint paintOf(int color) {
-    final Paint result = new Paint(Paint.ANTI_ALIAS_FLAG);
-    result.setColor(color);
-    return result;
+  static float animateValue(float start, float end, float fraction) {
+    return start + (end - start) * fraction;
   }
 
-  static Paint paintOf() {
-    return paintOf(Color.WHITE);
+  static void inRect(@NonNull Path into, @NonNull float[] pathData) {
+    if (!into.isEmpty()) into.rewind();
+
+    into.moveTo(pathData[0], pathData[1]);
+    into.lineTo(pathData[2], pathData[3]);
+    into.lineTo(pathData[4], pathData[5]);
+    into.lineTo(pathData[6], pathData[7]);
+  }
+
+  static void animatePath(@NonNull float[] out, @NonNull float[] startPath,
+      @NonNull float[] endPath, float fraction) {
+    if (startPath.length != endPath.length) {
+      throw new IllegalStateException("Path should be of the same size");
+    }
+
+    final int pathSize = startPath.length;
+
+    for (int i = 0; i < pathSize; i++) {
+      out[i] = animateValue(startPath[i], endPath[i], fraction);
+    }
   }
 }
