@@ -11,9 +11,11 @@ import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.view.animation.DecelerateInterpolator;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.widget.ImageView;
 
 import static rm.com.youtubeplayicon.PlayIconDrawable.IconState.PAUSE;
 import static rm.com.youtubeplayicon.PlayIconDrawable.IconState.PLAY;
@@ -22,9 +24,15 @@ import static rm.com.youtubeplayicon.PlayIconDrawable.IconState.PLAY;
  * Created by alex
  */
 public class PlayIconDrawable extends Drawable implements PlayIcon {
-  public static final long DEFAULT_ANIMATION_DURATION = 400;
   public static final int DEFAULT_COLOR = Color.WHITE;
   public static final boolean DEFAULT_VISIBLE = true;
+  public static final int DEFAULT_ANIMATION_DURATION = 400;
+  public static final TimeInterpolator DEFAULT_ANIMATION_INTERPOLATOR =
+      new AccelerateDecelerateInterpolator();
+
+  public interface StateListener {
+    void onStateChanged(IconState state);
+  }
 
   public enum IconState {
     PLAY, PAUSE
@@ -32,7 +40,7 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
 
   private static final float FRACTION_PLAY = 0F;
   private static final float FRACTION_PAUSE = 1F;
-  private static final float[] TEMP_PATH_DATA = new float[8];
+  private static final float[] ANIMATED_PATH_CONTAINER = new float[8];
 
   private final ValueAnimator iconAnimator = ValueAnimator.ofFloat(FRACTION_PLAY, FRACTION_PAUSE);
   private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -40,6 +48,7 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
   private final Path pathLeft = new Path();
 
   private IconState currentIconState = PLAY;
+  private StateListener stateListener = null;
   private boolean visible = DEFAULT_VISIBLE;
   private float currentFraction = FRACTION_PLAY;
 
@@ -51,7 +60,7 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
   public PlayIconDrawable() {
     iconPaint.setColor(DEFAULT_COLOR);
 
-    iconAnimator.setInterpolator(new DecelerateInterpolator(3));
+    iconAnimator.setInterpolator(DEFAULT_ANIMATION_INTERPOLATOR);
     iconAnimator.setDuration(DEFAULT_ANIMATION_DURATION);
     iconAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
       @Override public void onAnimationUpdate(ValueAnimator valueAnimator) {
@@ -63,11 +72,11 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
   @Override public void draw(@NonNull Canvas canvas) {
     if (!visible) return;
 
-    drawPart(canvas, currentFraction, pathRightPlay, pathRightPause, TEMP_PATH_DATA, pathRight,
-        iconPaint);
+    drawPart(canvas, currentFraction, pathRightPlay, pathRightPause, ANIMATED_PATH_CONTAINER,
+        pathRight, iconPaint);
 
-    drawPart(canvas, currentFraction, pathLeftPlay, pathLeftPause, TEMP_PATH_DATA, pathLeft,
-        iconPaint);
+    drawPart(canvas, currentFraction, pathLeftPlay, pathLeftPause, ANIMATED_PATH_CONTAINER,
+        pathLeft, iconPaint);
   }
 
   @Override protected void onBoundsChange(Rect bounds) {
@@ -92,8 +101,8 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
   @Override public void setIconState(@NonNull IconState state) {
     if (isRunning()) iconAnimator.cancel();
 
-    currentIconState = state;
     currentFraction = (state == PAUSE) ? FRACTION_PAUSE : FRACTION_PLAY;
+    updateIconState(state);
     invalidateSelf();
   }
 
@@ -111,7 +120,7 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
     }
   }
 
-  @Override public void setColor(int color) {
+  @Override public void setColor(@ColorInt int color) {
     this.iconPaint.setColor(color);
     invalidateSelf();
   }
@@ -143,7 +152,7 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
     }
 
     currentFraction = fraction;
-    currentIconState = (currentFraction < 0.5F) ? PLAY : PAUSE;
+    updateIconState((currentFraction < 0.5F) ? PLAY : PAUSE);
     invalidateSelf();
   }
 
@@ -151,7 +160,7 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
     return iconAnimator.isRunning();
   }
 
-  public void toggle(boolean animated) {
+  @Override public void toggle(boolean animated) {
     final IconState next = (currentIconState == PAUSE) ? PLAY : PAUSE;
 
     if (animated) {
@@ -159,6 +168,10 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
     } else {
       setIconState(next);
     }
+  }
+
+  @Override public void setStateListener(@Nullable StateListener listener) {
+    this.stateListener = listener;
   }
 
   private void drawPart(@NonNull Canvas canvas, float fraction, float[] pathPlay, float pathPause[],
@@ -199,6 +212,14 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
     };
   }
 
+  private void updateIconState(IconState state) {
+    if (stateListener != null && currentIconState != state) {
+      stateListener.onStateChanged(state);
+    }
+
+    currentIconState = state;
+  }
+
   private float getCenterX() {
     return getBounds().exactCenterX();
   }
@@ -213,5 +234,65 @@ public class PlayIconDrawable extends Drawable implements PlayIcon {
 
   private int getWidth() {
     return getBounds().width();
+  }
+
+  public static PlayIconBuilder builder() {
+    return new PlayIconBuilder();
+  }
+
+  public static final class PlayIconBuilder {
+    private IconState state = IconState.PLAY;
+    private int color = PlayIconDrawable.DEFAULT_COLOR;
+    private int duration = PlayIconDrawable.DEFAULT_ANIMATION_DURATION;
+    private TimeInterpolator interpolator = PlayIconDrawable.DEFAULT_ANIMATION_INTERPOLATOR;
+    private Animator.AnimatorListener animatorListener = null;
+    private StateListener stateListener = null;
+
+    public PlayIconBuilder withInitialState(@NonNull IconState state) {
+      this.state = state;
+      return this;
+    }
+
+    public PlayIconBuilder withColor(@ColorInt int color) {
+      this.color = color;
+      return this;
+    }
+
+    public PlayIconBuilder withDuration(int duration) {
+      this.duration = duration;
+      return this;
+    }
+
+    public PlayIconBuilder withInterpolator(@NonNull TimeInterpolator interpolator) {
+      this.interpolator = interpolator;
+      return this;
+    }
+
+    public PlayIconBuilder withAnimatorListener(@Nullable Animator.AnimatorListener listener) {
+      this.animatorListener = listener;
+      return this;
+    }
+
+    public PlayIconBuilder withStateListener(@Nullable StateListener listener) {
+      this.stateListener = listener;
+      return this;
+    }
+
+    public PlayIconDrawable into(@NonNull ImageView target) {
+      final PlayIconDrawable result = build();
+      target.setImageDrawable(result);
+      return result;
+    }
+
+    public PlayIconDrawable build() {
+      final PlayIconDrawable result = new PlayIconDrawable();
+      result.setIconState(state);
+      result.setAnimationDuration(duration);
+      result.setColor(color);
+      result.setInterpolator(interpolator);
+      result.setAnimationListener(animatorListener);
+      result.setStateListener(stateListener);
+      return result;
+    }
   }
 }

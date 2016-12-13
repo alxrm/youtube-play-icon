@@ -17,16 +17,16 @@ final class Graphics {
   static void inRect(@NonNull Path into, @NonNull float[] pathData) {
     if (!into.isEmpty()) into.rewind();
 
-    into.moveTo(pathData[0], pathData[1]);
-    into.lineTo(pathData[2], pathData[3]);
-    into.lineTo(pathData[4], pathData[5]);
-    into.lineTo(pathData[6], pathData[7]);
+    into.moveTo(pathData[0], pathData[1]); // top left
+    into.lineTo(pathData[2], pathData[3]); // top right
+    into.lineTo(pathData[4], pathData[5]); // bottom right
+    into.lineTo(pathData[6], pathData[7]); // bottom left
   }
 
   static void animatePath(@NonNull float[] out, @NonNull float[] startPath,
       @NonNull float[] endPath, float fraction) {
-    if (startPath.length != endPath.length) {
-      throw new IllegalStateException("Path should be of the same size");
+    if (startPath.length != endPath.length || out.length != startPath.length) {
+      throw new IllegalStateException("Paths should be of the same size");
     }
 
     final int pathSize = startPath.length;

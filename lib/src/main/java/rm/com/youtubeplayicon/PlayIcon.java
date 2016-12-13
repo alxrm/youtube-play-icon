@@ -33,6 +33,20 @@ public interface PlayIcon {
   void animateToState(@NonNull PlayIconDrawable.IconState nextState);
 
   /**
+   * Toggles the state of the icon Play-Pause and vice versa
+   *
+   * @param animated indicates whether this method should change the state with some animation
+   */
+  void toggle(boolean animated);
+
+  /**
+   * Sets the listener, which is being invoked every time the state's changed
+   *
+   * @param listener instance of state listener
+   */
+  void setStateListener(@Nullable PlayIconDrawable.StateListener listener);
+
+  /**
    * Set color of icon
    *
    * @param color new icon color
