@@ -1,5 +1,7 @@
 package rm.com.play;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.support.v4.view.animation.FastOutSlowInInterpolator;
@@ -21,6 +23,12 @@ public class MainActivity extends AppCompatActivity {
         .withInterpolator(new FastOutSlowInInterpolator())
         .withDuration(300)
         .withInitialState(PlayIconDrawable.IconState.PAUSE)
+        .withAnimatorListener(new AnimatorListenerAdapter() {
+          @Override public void onAnimationEnd(Animator animation) {
+            super.onAnimationEnd(animation);
+            Log.d("MainActivity", "animationFinished");
+          }
+        })
         .withStateListener(new PlayIconDrawable.StateListener() {
           @Override public void onStateChanged(PlayIconDrawable.IconState state) {
             Log.d("MainActivity", "onStateChanged: " + state);
